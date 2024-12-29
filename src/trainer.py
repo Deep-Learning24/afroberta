@@ -173,13 +173,15 @@ class TrainingManager:
         """
         self._set_data_collator_class()
 
+        token = os.getenv("HUGGINGFACE_TOKEN")
+        print("HUGGINGFACE_TOKEN", token)
         if self.train_config.pop("resume_training", None):
             self.model_path = self.train_config["output_dir"]
             self.logger.info(f"Training will resume from {self.model_path}")
             self._build_tokenizer()
             self._build_datasets()
             self._remove_redundant_training_args()
-            self.model = XLMRobertaForMaskedLM.from_pretrained(self.model_path)
+            self.model = XLMRobertaForMaskedLM.from_pretrained(self.model_path, use_auth_token=token)
             self.logger.info(
                 f"Model loaded from {self.model_path} with num parameters: {self.model.num_parameters()}"
             )
@@ -192,9 +194,9 @@ class TrainingManager:
             else:
                 self.logger.info("Not training from scratch, finetuning pretrained model...")
                 self.logger.info("Building tokenizer from pretrained...")
-                self.tokenizer = XLMRobertaTokenizer.from_pretrained(DEFAULT_XLM_MODEL_SIZE)
+                self.tokenizer = XLMRobertaTokenizer.from_pretrained(DEFAULT_XLM_MODEL_SIZE, use_auth_token=token)
                 self.logger.info("Building model from pretrained...")
-                self.model = XLMRobertaForMaskedLM.from_pretrained(DEFAULT_XLM_MODEL_SIZE)
+                self.model = XLMRobertaForMaskedLM.from_pretrained(DEFAULT_XLM_MODEL_SIZE, use_auth_token=token)
             self._build_datasets()
 
     def _remove_redundant_training_args(self) -> None:

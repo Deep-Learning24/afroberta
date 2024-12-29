@@ -1,6 +1,8 @@
-absl-py==0.11.0
-sentencepiece==0.1.94
+absl-py==2.1.0
+sentencepiece==0.2.0
 seqeval==1.2.2
-tensorboardX==2.1
-torch==1.7.1+cu101
-transformers==4.2.1
+tensorboardX==2.6.2.2
+# torch==1.7.1+cu101
+torch==2.2.2
+transformers==4.47.1
+datasets

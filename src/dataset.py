@@ -9,6 +9,9 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from transformers import XLMRobertaTokenizer
+import os
+from pathlib import Path
+from sklearn.model_selection import train_test_split
 
 from src.utils import create_logger
 
@@ -47,7 +50,11 @@ class TrainDataset(Dataset):
         self.languages: List[str] = []
         self.num_examples_per_language = OrderedDict()
 
+        self.create_and_save_datasets('data/newsites.txt', 'data', 'kin')
+        
+        
         file_paths = Path(train_data_dir).glob(TRAIN_FILE_PATTERN)
+        
         for file_path in file_paths:
             language = file_path.suffix.replace(".", "")
             lines = [
@@ -75,7 +82,58 @@ class TrainDataset(Dataset):
             self.languages.append(language)
 
         self._set_language_probs()
+        
 
+    
+    def create_and_save_datasets(self,input_file: str, output_dir: str, language: str, val_size: float = 0.1, test_size: float = 0.1) -> None:
+        """
+        Reads the .txt file, splits the dataset, and saves the train, validation, and test sets.
+
+        Args:
+            input_file (str): Path to the input .txt file.
+            output_dir (str): Directory to save the output datasets.
+            language (str): Language identifier to include in the filenames.
+            val_size (float): Proportion of the dataset to include in the validation split.
+            test_size (float): Proportion of the dataset to include in the test split.
+        """
+        # Read the input file
+        print("Reading the input file", input_file)
+        with open(input_file, 'r', encoding='utf-8') as file:
+            lines = [line.strip() for line in file if line.strip()]
+
+        # Split the dataset into train, validation, and test sets
+        train_lines, test_lines = train_test_split(lines, test_size=test_size, random_state=42)
+        train_lines, val_lines = train_test_split(train_lines, test_size=val_size / (1 - test_size), random_state=42)
+
+        # Create output directories if they don't exist
+        train_dir = os.path.join(output_dir, 'train')
+        val_dir = os.path.join(output_dir, 'eval')
+        test_dir = os.path.join(output_dir, 'test')
+        print("Creating output directories")
+        print(train_dir)
+        print(val_dir)
+        print(test_dir)
+        os.makedirs(train_dir, exist_ok=True)
+        os.makedirs(val_dir, exist_ok=True)
+        os.makedirs(test_dir, exist_ok=True)
+
+        # Save the splits into separate files with language identifier
+        with open(os.path.join(train_dir, f'train.{language}'), 'w', encoding='utf-8') as file:
+            file.write('\n'.join(train_lines))
+        with open(os.path.join(val_dir, f'eval.{language}'), 'w', encoding='utf-8') as file:
+            file.write('\n'.join(val_lines))
+        with open(os.path.join(test_dir, f'test.{language}'), 'w', encoding='utf-8') as file:
+            file.write('\n'.join(test_lines))
+        
+        # Save the splits into separate files with language identifier
+        with open(os.path.join(train_dir, f'all_train.txt'), 'w', encoding='utf-8') as file:
+            file.write('\n'.join(train_lines))
+        with open(os.path.join(val_dir, f'all_eval.txt'), 'w', encoding='utf-8') as file:
+            file.write('\n'.join(val_lines))
+        with open(os.path.join(test_dir, f'all_test.txt'), 'w', encoding='utf-8') as file:
+            file.write('\n'.join(test_lines))
+    
+   
     def create_language_index_mapping(self) -> None:
         """
         Create language to index mapping dictionary.
@@ -176,8 +234,8 @@ class TrainDataset(Dataset):
         self.languages = list(self.num_examples_per_language.keys())
         self._set_language_probs()
         self.create_language_index_mapping()
-
-
+        
+    
 class EvalDataset(Dataset):
     """
     Simple line by line dataset for evaluation.
