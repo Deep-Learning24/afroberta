@@ -14,6 +14,7 @@ from pathlib import Path
 from sklearn.model_selection import train_test_split
 
 from src.utils import create_logger
+import json
 
 TRAIN_FILE_PATTERN = "train.*"
 INIT_DATA_SEED = 999
@@ -63,8 +64,15 @@ class TrainDataset(Dataset):
                 if (len(line.split()) > MIN_NUM_TOKENS and not line.isspace())
             ]
 
+            # Extract "text" field and filter based on token count
+            valid_lines = [
+                json.loads(line)["text"]  # Parse the line as JSON and access the "text" field
+                for line in lines
+                if json.loads(line).get("n_words", 0) > MIN_NUM_TOKENS  # Parse the line and check "n_words"
+            ]
+
             encoding = tokenizer(
-                lines,
+                valid_lines,
                 max_length=tokenizer.model_max_length,
                 add_special_tokens=True,
                 truncation=True,

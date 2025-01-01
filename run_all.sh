@@ -1,12 +1,34 @@
 #!/bin/bash
 
-export CUDA_AVAILABLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=0,1  # Use GPUs 0 and 1
+
+# Set the wandb API key
+export WANDB_API_KEY=3644f3d76a394594794c1b136a20f75303e871ba
+
+# Install required dependencies
+pip install -r requirements.txt
 
 # Train Masked Language Model
-
 experiment_name=afriberta_small
-python main.py --experiment_name $experiment_name --config_path=mlm_configs/afriberta_small.yml
 
+# Number of GPUs you want to use
+num_gpus=2
+
+# Set environment variables for distributed training
+export MASTER_ADDR="localhost"
+export MASTER_PORT=12393
+export WORLD_SIZE=$num_gpus
+
+# Loop over the GPUs to launch the training processes
+for local_rank in $(seq 0 $((num_gpus - 1))); do
+    export LOCAL_RANK=$local_rank
+    export RANK=$local_rank
+    # Launch training for each GPU
+    python main.py --experiment_name $experiment_name --config_path=mlm_configs/afriberta_small.yml &
+done
+
+# Wait for all background processes to finish
+wait
 
 # Evaluate on Named Entity Recognition
 

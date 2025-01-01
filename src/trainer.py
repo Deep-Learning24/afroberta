@@ -6,6 +6,7 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
+import torch
 import transformers
 from torch.utils.data import Dataset
 from transformers import DataCollatorForLanguageModeling
@@ -19,6 +20,9 @@ from src.custom import CustomTrainer
 from src.dataset import EvalDataset
 from src.dataset import TrainDataset
 from src.utils import create_logger
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.distributed import init_process_group
+from torch import distributed as dist
 
 DEFAULT_XLM_MODEL_SIZE = "xlm-roberta-base"
 MLM_PROBABILITY = 0.15
@@ -72,15 +76,48 @@ class TrainingManager:
         )
         self.tokenizer.model_max_length = self.model_config["max_length"]
 
+    
+
     def _build_model(self) -> None:
         """
-        Build model from specified model config.
+        Build model from specified model config, automatically detecting available devices.
         """
         self.logger.info("Building model...")
         self._update_model_config()
         xlm_roberta_config = XLMRobertaConfig(**self.model_config)
-        self.model = XLMRobertaForMaskedLM(xlm_roberta_config)
-        self.logger.info(f"Model built with num parameters: {self.model.num_parameters()}")
+        
+        # Detect number of GPUs and ensure at least one is available
+        num_gpus = torch.cuda.device_count()
+        if num_gpus == 0:
+            raise RuntimeError("No GPUs available for training.")
+        self.logger.info(f"Number of GPUs detected: {num_gpus}")
+
+        # Initialize process group for DDP if not already initialized
+        if not dist.is_initialized():
+            self.logger.info("Initializing distributed process group...")
+            dist.init_process_group(backend="nccl")
+        
+        # Distributed process group initialization
+        if not torch.distributed.is_initialized():
+            raise RuntimeError("Distributed process group is not initialized. Ensure torch.distributed.init_process_group() is called.")
+        
+        # Get local rank and set the current device
+        local_rank = int(os.environ["LOCAL_RANK"])
+        torch.cuda.set_device(local_rank)
+        self.logger.info(f"Using device: cuda:{local_rank} for local rank {local_rank}")
+        
+        # Initialize the model and move it to the assigned device
+        self.model = XLMRobertaForMaskedLM(xlm_roberta_config).to(f"cuda:{local_rank}")
+        
+        # Wrap model with DistributedDataParallel
+        self.model = DDP(self.model, device_ids=[local_rank])
+        
+        # Log model parameter count
+        total_params = sum(p.numel() for p in self.model.parameters())
+        self.logger.info(f"Model built with {total_params:,} parameters.")
+
+
+
 
     def _build_datasets(self) -> None:
         """
@@ -111,6 +148,8 @@ class TrainingManager:
         data_collator = self.collator_class(
             tokenizer=self.tokenizer, mlm_probability=MLM_PROBABILITY
         )
+
+        
 
         training_args = TrainingArguments(**self.train_config)
         self.trainer = CustomTrainer(
