@@ -4,6 +4,7 @@ from absl import app
 from absl import flags
 
 from src.trainer import TrainingManager
+from src.inference import InferenceManager
 from src.utils import load_config
 import torch
 import torch.distributed as dist
@@ -56,10 +57,34 @@ def main(argv):
 
     # Initialize and start training
     trainer = TrainingManager(config, experiment_path)
-    trainer.train()
+    # trainer.train()
+    
 
-    if FLAGS.world_size > 1:
-        dist.destroy_process_group()
+    # if FLAGS.world_size > 1:
+    #     dist.destroy_process_group()
+
+
+    # Inference
+    # Define paths and configuration
+    CONFIG_PATH = "mlm_configs/afriberta_base.yml"
+    MODEL_PATH = "experiments/afriberta_base"
+    TEST_FILE_PATH = "data/test/test.kin"
+
+    # Initialize InferenceManager
+    inference_manager = InferenceManager(CONFIG_PATH, trainer.model,trainer.tokenizer, TEST_FILE_PATH)
+
+    # Load test data
+    test_sentences = inference_manager.load_test_data()
+
+    # Run evaluation
+    results, bleu_score,avg_rouge_scores = inference_manager.evaluate(test_sentences)
+    
+    # Print results
+    for i,result in enumerate(results):
+        print(f": Result {i+1}: {result}")
+    print(f"Blue score is: {bleu_score}")
+    print(f"avg_rouge_scores: {avg_rouge_scores}")
+        
 
 if __name__ == "__main__":
     flags.mark_flag_as_required("experiment_name")

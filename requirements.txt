@@ -6,3 +6,5 @@ tensorboardX==2.6.2.2
 torch==2.2.2
 transformers==4.47.1
 datasets
+sacrebleu
+rouge-score
